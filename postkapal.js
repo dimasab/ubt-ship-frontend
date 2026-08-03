@@ -1,7 +1,7 @@
 //******************************************* MULAI FILE POSTKAPAL.JS *******************************************
 /**
  * 
- * Version: 5 -> hapus filepath dari response
+ * Version: 5 -> delete filepath from response
  * 
  * 
  */

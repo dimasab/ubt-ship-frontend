@@ -4,3 +4,4 @@
 # START ALLOWING
 !.gitignore
 !kapal.js
+!README.md

@@ -1,0 +1,6 @@
+# START EXCLUDING
+*
+.env
+# START ALLOWING
+!.gitignore
+!postkapal.js

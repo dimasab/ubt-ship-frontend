@@ -3,4 +3,4 @@
 .env
 # START ALLOWING
 !.gitignore
-!postkapal.js
+!kapal.js

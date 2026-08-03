@@ -1,7 +1,7 @@
 //******************************************* MULAI FILE KAPAL.JS *******************************************
 /**
  * 
- * Version: 5 -> delete filepath from response
+ * Version: 6 -> display latest to oldest
  * 
  * 
  */
@@ -124,7 +124,7 @@ router.get('/ubtship/read-json', ubtshipRateLimit, (req, res) => {
                 filePath,
             };
         })
-        .sort((a, b) => a.fileName.localeCompare(b.fileName, 'en', { numeric: true }));
+        .sort((a, b) => b.fileName.localeCompare(a.fileName, 'en', { numeric: true }));
 
     const totalFiles = files.length;
     const totalPages = Math.max(1, Math.ceil(totalFiles / limit));

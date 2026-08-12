@@ -1,7 +1,7 @@
 //******************************************* MULAI FILE KAPAL.JS *******************************************
 /**
  * 
- * Version: 7 -> mulai sqlite3
+ * Version: 8 -> add /ubtship/ui
  * 
  * 
  */
@@ -431,6 +431,14 @@ router.get('/ubtship/read-json', ubtshipRateLimit, async (req, res) => {
         console.error('ubtship read-json sqlite error:', err.message);
         return res.status(500).json({ error: 'Failed to read indexed snapshots' });
     }
+});
+
+router.get('/ubtship/ui', (req, res) => {
+    res.redirect(301, '/ubtship/ui/');
+});
+
+router.get('/ubtship/ui/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'ui.html'));
 });
 
 module.exports = router;

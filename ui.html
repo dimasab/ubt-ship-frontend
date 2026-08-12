@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UBTShip Fleet Monitor</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;overflow:hidden;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#0a1628;color:#e0e6f0}
+
+    /* ── loading ──────────────────────────────────────── */
+    #loading{position:fixed;inset:0;background:#0a1628;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:16px}
+    .spinner{width:48px;height:48px;border:4px solid #1a3a60;border-top-color:#38bdf8;border-radius:50%;animation:spin .9s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .loading-txt{color:#5a7a9a;font-size:.9rem}
+
+    /* ── fleet screen ─────────────────────────────────── */
+    #fleet-screen{height:100vh;overflow-y:auto;padding:24px;display:none}
+    .fleet-hdr{text-align:center;padding:20px 0 30px}
+    .fleet-hdr h1{font-size:2rem;color:#38bdf8;letter-spacing:3px;text-shadow:0 0 24px rgba(56,189,248,.4)}
+    .fleet-hdr .sub{margin-top:8px;color:#5a7a9a;font-size:.88rem}
+    .ships-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;max-width:1200px;margin:0 auto}
+
+    .ship-card{background:linear-gradient(135deg,#0e2040,#0c1a34);border:1px solid #1a3a60;border-radius:12px;padding:20px;cursor:pointer;transition:transform .2s,border-color .2s,box-shadow .2s;position:relative;overflow:hidden}
+    .ship-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,#1a3a60,transparent);transition:background .2s}
+    .ship-card:hover{transform:translateY(-3px);border-color:#38bdf8;box-shadow:0 8px 28px rgba(56,189,248,.2)}
+    .ship-card:hover::before{background:linear-gradient(90deg,transparent,#38bdf8,transparent)}
+    .ship-card:active{transform:translateY(-1px)}
+
+    .card-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+    .sig-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .sig-ok{background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,.8);animation:pulse-ok 2s ease-in-out infinite}
+    .sig-lost{background:#ef4444;box-shadow:0 0 8px rgba(239,68,68,.8);animation:pulse-lost 1.5s ease-in-out infinite}
+    @keyframes pulse-ok{0%,100%{opacity:1}50%{opacity:.55}}
+    @keyframes pulse-lost{0%,100%{opacity:1}50%{opacity:.25}}
+    .card-name{font-size:1.1rem;font-weight:700;color:#e0f4ff;letter-spacing:.5px}
+
+    .card-badge{display:inline-block;font-size:.72rem;padding:3px 10px;border-radius:12px;margin-bottom:14px;font-weight:600;letter-spacing:.3px}
+    .st-moored{background:rgba(56,189,248,.12);color:#38bdf8;border:1px solid rgba(56,189,248,.3)}
+    .st-underway{background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.3)}
+    .st-anchor{background:rgba(234,179,8,.12);color:#fbbf24;border:1px solid rgba(234,179,8,.3)}
+    .st-other{background:rgba(168,85,247,.12);color:#c084fc;border:1px solid rgba(168,85,247,.3)}
+
+    .card-details{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:.8rem}
+    .card-details .lbl{color:#4a6a8a}
+    .card-details .val{color:#b0cce8}
+
+    /* ── detail screen ────────────────────────────────── */
+    #detail-screen{display:none;height:100vh;flex-direction:column}
+    .det-hdr{background:#0a1628;border-bottom:1px solid #1a3a60;padding:12px 20px;display:flex;align-items:center;gap:16px;flex-shrink:0;min-height:54px}
+    .btn-back{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.3);color:#38bdf8;padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.88rem;transition:background .15s}
+    .btn-back:hover{background:rgba(56,189,248,.22)}
+    .det-title{font-size:1.2rem;font-weight:700;color:#e0f4ff}
+    .det-imo{margin-left:auto;font-size:.8rem;color:#4a6a8a}
+
+    .det-body{display:flex;flex:1;overflow:hidden;min-height:0}
+
+    /* map col */
+    .map-col{flex:1;display:flex;flex-direction:column;min-width:0}
+    #map{flex:1;min-height:0;background:#0a1628}
+    .slider-wrap{background:#090f1e;border-top:1px solid #1a3a60;padding:14px 20px;flex-shrink:0}
+    .slider-ends{display:flex;justify-content:space-between;font-size:.72rem;color:#4a6a8a;margin-bottom:8px}
+    input[type=range]#time-slider{width:100%;-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;background:#1a3a60;outline:none;cursor:pointer}
+    input[type=range]#time-slider::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#38bdf8;cursor:pointer;box-shadow:0 0 10px rgba(56,189,248,.6);transition:transform .1s}
+    input[type=range]#time-slider::-webkit-slider-thumb:hover{transform:scale(1.2)}
+    input[type=range]#time-slider::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#38bdf8;cursor:pointer;border:none}
+    .slider-cur{text-align:center;margin-top:6px;font-size:.82rem;color:#38bdf8;min-height:1.2em}
+
+    /* info panel */
+    .info-col{width:340px;flex-shrink:0;background:#0c1a34;border-left:1px solid #1a3a60;display:flex;flex-direction:column;overflow:hidden}
+    .sig-bar{padding:10px 16px;text-align:center;font-size:.82rem;font-weight:600;flex-shrink:0}
+    .sig-bar.ok{background:rgba(34,197,94,.12);color:#4ade80;border-bottom:1px solid rgba(34,197,94,.25)}
+    .sig-bar.lost{background:rgba(239,68,68,.12);color:#f87171;border-bottom:1px solid rgba(239,68,68,.25);animation:blink 2s ease-in-out infinite}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.55}}
+    .info-scroll{overflow-y:auto;flex:1}
+    .info-sec{padding:14px 16px;border-bottom:1px solid #1a3a60}
+    .info-sec-ttl{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:#3a6a8a;margin-bottom:10px}
+    .info-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:3px 0;font-size:.82rem}
+    .info-lbl{color:#4a6a8a;flex-shrink:0}
+    .info-val{color:#b0cce8;text-align:right;word-break:break-word}
+
+    /* misc */
+    .err-box{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:16px 20px;color:#f87171;text-align:center;margin:20px auto;max-width:420px}
+  </style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="loading">
+  <div class="spinner"></div>
+  <div class="loading-txt">Loading fleet data…</div>
+</div>
+
+<!-- Fleet selection screen -->
+<div id="fleet-screen">
+  <div class="fleet-hdr">
+    <h1>&#9875; UBTShip Fleet Monitor</h1>
+    <div class="sub" id="fleet-sub"></div>
+  </div>
+  <div class="ships-grid" id="ships-grid"></div>
+</div>
+
+<!-- Ship detail screen -->
+<div id="detail-screen">
+  <div class="det-hdr">
+    <button class="btn-back" id="btn-back">&#8592; Fleet</button>
+    <div class="det-title" id="det-title"></div>
+    <div class="det-imo" id="det-imo"></div>
+  </div>
+  <div class="det-body">
+    <div class="map-col">
+      <div id="map"></div>
+      <div class="slider-wrap">
+        <div class="slider-ends">
+          <span id="lbl-old"></span>
+          <span id="lbl-new"></span>
+        </div>
+        <input type="range" id="time-slider" min="0" max="99" value="99"/>
+        <div class="slider-cur" id="slider-cur"></div>
+      </div>
+    </div>
+    <div class="info-col">
+      <div class="sig-bar" id="sig-bar"></div>
+      <div class="info-scroll" id="info-scroll"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+(function () {
+  'use strict';
+
+  var snapshots      = [];   // API items, index 0 = newest
+  var activeSnaps    = [];   // per-ship subset, same order (0 = newest)
+  var leafMap        = null;
+  var shipMarker     = null;
+
+  // ── helpers ──────────────────────────────────────────────────────────
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    try { return new Date(iso).toUTCString(); } catch(e) { return String(iso); }
+  }
+
+  function fmtShort(iso) {
+    if (!iso) return '';
+    try { return new Date(iso).toISOString().replace('T', ' ').slice(0, 16) + ' UTC'; } catch(e) { return String(iso); }
+  }
+
+  // Red icon if (snapshot generated_at) - (vessel time_of_latest_position) > 1 hour
+  function isNoSignal(generatedAt, timeOfLatestPos) {
+    if (!generatedAt || !timeOfLatestPos) return true;
+    try { return (new Date(generatedAt) - new Date(timeOfLatestPos)) > 3600000; } catch(e) { return true; }
+  }
+
+  function statusClass(s) {
+    if (!s) return 'st-other';
+    var l = s.toLowerCase();
+    if (l.indexOf('moor') !== -1)    return 'st-moored';
+    if (l.indexOf('underway') !== -1) return 'st-underway';
+    if (l.indexOf('anchor') !== -1)  return 'st-anchor';
+    return 'st-other';
+  }
+
+  function shipIcon(headingDeg, noSig) {
+    var color = noSig ? '#ef4444' : '#22d3ee';
+    var glow  = noSig ? '#ff8080' : '#67e8f9';
+    var h = Number(headingDeg) || 0;
+    return L.divIcon({
+      className : '',
+      iconSize  : [32, 32],
+      iconAnchor: [16, 16],
+      html: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"' +
+            ' style="transform:rotate(' + h + 'deg);filter:drop-shadow(0 0 5px ' + glow + ')">' +
+            '<polygon points="16,3 23,29 16,25 9,29"' +
+            ' fill="' + color + '" stroke="' + glow + '" stroke-width="1.5" stroke-linejoin="round"/>' +
+            '</svg>',
+    });
+  }
+
+  // ── fetch ─────────────────────────────────────────────────────────────
+
+  function init() {
+    fetch('/ubtship/read-json?limit=100&page=1')
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function(data) {
+        snapshots = data.items || [];
+        if (!snapshots.length) throw new Error('No snapshots available');
+        hide('loading');
+        buildFleet();
+      })
+      .catch(function(e) {
+        document.getElementById('loading').innerHTML =
+          '<div class="err-box">Failed to load fleet data:<br>' + esc(e.message) + '</div>';
+      });
+  }
+
+  // ── fleet screen ──────────────────────────────────────────────────────
+
+  function buildFleet() {
+    var latest  = snapshots[0];
+    var vessels = (latest && latest.content && latest.content.vessels) || [];
+    var genAt   = latest && latest.content && latest.content.generated_at;
+
+    document.getElementById('fleet-sub').textContent =
+      (genAt ? 'Last snapshot: ' + fmtDate(genAt) + '  ·  ' : '') + vessels.length + ' vessel(s)';
+
+    var grid = document.getElementById('ships-grid');
+    grid.innerHTML = '';
+
+    if (!vessels.length) {
+      grid.innerHTML = '<div class="err-box">No vessels in latest snapshot.</div>';
+    }
+
+    vessels.forEach(function(v) {
+      var noSig = isNoSignal(genAt, v.time_of_latest_position);
+      var card  = document.createElement('div');
+      card.className = 'ship-card';
+      card.innerHTML =
+        '<div class="card-top">' +
+          '<span class="sig-dot ' + (noSig ? 'sig-lost' : 'sig-ok') + '"></span>' +
+          '<span class="card-name">' + esc(v.name) + '</span>' +
+        '</div>' +
+        '<div class="card-badge ' + statusClass(v.navigational_status) + '">' + esc(v.navigational_status || 'Unknown') + '</div>' +
+        '<div class="card-details">' +
+          '<span class="lbl">Flag</span><span class="val">' + esc(v.flag || '—') + '</span>' +
+          '<span class="lbl">Speed</span><span class="val">' + (v.speed_kn != null ? v.speed_kn + ' kn' : '—') + '</span>' +
+          '<span class="lbl">Heading</span><span class="val">' + (v.true_heading_deg != null ? v.true_heading_deg + '°' : '—') + '</span>' +
+          '<span class="lbl">Destination</span><span class="val">' + esc(v.matched_destination || v.reported_destination || '—') + '</span>' +
+        '</div>';
+      card.addEventListener('click', function() { openDetail(v.name); });
+      grid.appendChild(card);
+    });
+
+    show('fleet-screen', 'block');
+  }
+
+  // ── detail screen ─────────────────────────────────────────────────────
+
+  function openDetail(shipName) {
+    hide('fleet-screen');
+
+    // collect this ship's entries across all snapshots, preserving newest-first order
+    activeSnaps = snapshots
+      .map(function(snap) {
+        if (!snap.content) return null;
+        var vessels = snap.content.vessels || [];
+        var v = null;
+        for (var i = 0; i < vessels.length; i++) {
+          if (vessels[i].name === shipName) { v = vessels[i]; break; }
+        }
+        return v ? { vessel: v, generatedAt: snap.content.generated_at } : null;
+      })
+      .filter(Boolean);
+
+    if (!activeSnaps.length) return;
+
+    document.getElementById('det-title').textContent = shipName;
+    document.getElementById('det-imo').textContent   = 'IMO ' + (activeSnaps[0].vessel.imo || '—');
+
+    // Slider: value 0 (leftmost) = oldest  →  value N-1 (rightmost) = newest
+    // activeSnaps[0] = newest, activeSnaps[N-1] = oldest
+    // mapping: snapshotIndex = (N-1) - sliderValue
+    var N      = activeSnaps.length;
+    var slider = document.getElementById('time-slider');
+    slider.min   = 0;
+    slider.max   = N - 1;
+    slider.value = N - 1; // start at rightmost = newest
+
+    document.getElementById('lbl-old').textContent = fmtShort(activeSnaps[N - 1].generatedAt);
+    document.getElementById('lbl-new').textContent = fmtShort(activeSnaps[0].generatedAt);
+
+    slider.oninput = function() {
+      renderSnap((N - 1) - parseInt(slider.value, 10));
+    };
+
+    // init Leaflet once
+    show('detail-screen', 'flex');
+    if (!leafMap) {
+      leafMap = L.map('map', { zoomControl: true }).setView([0, 90], 3);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }).addTo(leafMap);
+    }
+
+    setTimeout(function() {
+      leafMap.invalidateSize();
+      renderSnap(0); // show newest
+    }, 80);
+  }
+
+  function renderSnap(idx) {
+    var entry = activeSnaps[idx];
+    if (!entry) return;
+    var v     = entry.vessel;
+    var genAt = entry.generatedAt;
+    var noSig = isNoSignal(genAt, v.time_of_latest_position);
+    var hdg   = v.true_heading_deg != null ? v.true_heading_deg : (v.course_deg != null ? v.course_deg : 0);
+
+    document.getElementById('slider-cur').textContent =
+      genAt ? 'Snapshot: ' + fmtDate(genAt) : '';
+
+    // update map marker
+    if (v.latitude != null && v.longitude != null) {
+      var icon = shipIcon(hdg, noSig);
+      if (!shipMarker) {
+        shipMarker = L.marker([v.latitude, v.longitude], { icon: icon }).addTo(leafMap);
+        leafMap.setView([v.latitude, v.longitude], 6);
+      } else {
+        shipMarker.setLatLng([v.latitude, v.longitude]);
+        shipMarker.setIcon(icon);
+      }
+    }
+
+    // signal bar
+    var bar = document.getElementById('sig-bar');
+    if (noSig) {
+      bar.className   = 'sig-bar lost';
+      bar.textContent = '\u26a0 NO SIGNAL \u2014 Last AIS position > 1 hour before snapshot';
+    } else {
+      bar.className   = 'sig-bar ok';
+      bar.textContent = '\u2714 Signal OK';
+    }
+
+    renderInfo(v);
+  }
+
+  function renderInfo(v) {
+    var cv = v.current_voyage || {};
+
+    var html =
+      sec('Position', [
+        ['Latitude',          v.latitude  != null ? v.latitude.toFixed(6)  : '—'],
+        ['Longitude',         v.longitude != null ? v.longitude.toFixed(6) : '—'],
+        ['Last AIS Time',     fmtDate(v.time_of_latest_position)],
+        ['Position Received', v.position_received || '—'],
+      ]) +
+      sec('Navigation', [
+        ['Status',       v.navigational_status || '—'],
+        ['Speed',        v.speed_kn != null ? v.speed_kn + ' kn' : '—'],
+        ['Course',       v.course_deg != null ? v.course_deg + '\u00b0' : '—'],
+        ['True Heading', v.true_heading_deg != null ? v.true_heading_deg + '\u00b0' : '—'],
+        ['Rate of Turn', v.rate_of_turn_deg_per_min != null ? v.rate_of_turn_deg_per_min + ' \u00b0/min' : '—'],
+        ['Draught',      v.draught_m != null ? v.draught_m + ' m' : '—'],
+      ]) +
+      sec('Vessel', [
+        ['IMO',         v.imo       || '—'],
+        ['MMSI',        v.mmsi      || '—'],
+        ['Call Sign',   v.call_sign || '—'],
+        ['Flag',        v.flag      || '—'],
+        ['Type',        v.detailed_vessel_type || v.general_vessel_type || '—'],
+        ['AIS Class',   v.ais_transponder_class || '—'],
+        ['AIS Source',  v.ais_source || '—'],
+      ]) +
+      sec('Voyage', [
+        ['From',          cv.from || '—'],
+        ['To',            cv.to   || '—'],
+        ['Departed',      fmtDate(cv.actual_departure_time)],
+        ['Arrived',       fmtDate(cv.actual_arrival_time)],
+        ['Destination',   v.matched_destination || v.reported_destination || '—'],
+        ['Reported ETA',  fmtDate(v.reported_eta)],
+        ['Current Port',  v.current_port  || '—'],
+        ['Dest. Port',    v.destination_port || '—'],
+        ['Vessel Local',  fmtDate(v.vessel_local_time)],
+      ]);
+
+    document.getElementById('info-scroll').innerHTML = html;
+  }
+
+  function sec(title, rows) {
+    var h = '<div class="info-sec"><div class="info-sec-ttl">' + esc(title) + '</div>';
+    rows.forEach(function(r) {
+      h += '<div class="info-row">' +
+           '<span class="info-lbl">' + esc(r[0]) + '</span>' +
+           '<span class="info-val">'  + esc(r[1]) + '</span>' +
+           '</div>';
+    });
+    return h + '</div>';
+  }
+
+  // ── navigation ────────────────────────────────────────────────────────
+
+  document.getElementById('btn-back').addEventListener('click', function() {
+    hide('detail-screen');
+    show('fleet-screen', 'block');
+    if (shipMarker) { leafMap.removeLayer(shipMarker); shipMarker = null; }
+  });
+
+  // ── util ──────────────────────────────────────────────────────────────
+
+  function show(id, display) { document.getElementById(id).style.display = display || 'block'; }
+  function hide(id)           { document.getElementById(id).style.display = 'none'; }
+
+  init();
+}());
+</script>
+</body>
+</html>

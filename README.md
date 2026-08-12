@@ -1,6 +1,6 @@
 # UBTSHIP API Documentation
 
-The UBTSHIP module provides endpoints for saving and retrieving ship data JSON files. Saved files are stored on disk in `rute/ubtship/output/`.
+The UBTSHIP module provides endpoints for saving and retrieving ship data JSON files. Saved files are stored on disk in `rute/ubtship/output/` and indexed into a local SQLite database at `rute/ubtship/ubtship.db` for faster reads.
 
 ---
 
@@ -10,7 +10,8 @@ The UBTSHIP module provides endpoints for saving and retrieving ship data JSON f
 rute/ubtship/
 ├── kapal.js       # Express router definition
 ├── README.md      # API documentation
-└── output/        # Storage directory for generated JSON files
+├── output/        # Storage directory for generated JSON files
+└── ubtship.db     # SQLite index for paginated reads
 ```
 
 ---
@@ -30,8 +31,8 @@ Ensure the following environment variables are set before starting the server:
 
 | Method | Endpoint | Auth Required | Description |
 | --- | --- | --- | --- |
-| `POST` | `/ubtship/create-json` | Bearer Token + Body Secret | Create/write a ship JSON file in `output/` |
-| `GET` | `/ubtship/read-json` | None (Rate Limited) | Paginated listing of JSON files (newest first) |
+| `POST` | `/ubtship/create-json` | Bearer Token + Body Secret | Create/write a ship JSON file in `output/` and index it in SQLite |
+| `GET` | `/ubtship/read-json` | None (Rate Limited) | Paginated listing of indexed JSON files (newest first) |
 
 ---
 
@@ -39,7 +40,7 @@ Ensure the following environment variables are set before starting the server:
 
 ### 1. `POST /ubtship/create-json`
 
-Creates or overwrites a `.json` file in the `rute/ubtship/output/` directory.
+Creates or overwrites a `.json` file in the `rute/ubtship/output/` directory and updates the SQLite index.
 
 #### Headers
 - `Authorization: Bearer <UBTSHIP_API_KEY>`
@@ -69,6 +70,7 @@ Creates or overwrites a `.json` file in the `rute/ubtship/output/` directory.
   ```json
   {
     "success": true,
+    "indexed": true,
     "filePath": "output/summary_2026-08-03_12-00_1.json"
   }
   ```
@@ -105,7 +107,9 @@ Creates or overwrites a `.json` file in the `rute/ubtship/output/` directory.
 
 ### 2. `GET /ubtship/read-json`
 
-Retrieves a paginated list of stored JSON files and their parsed content. Files are ordered **newest first** based on filename sorting (descending).
+Retrieves a paginated list of indexed JSON files and their parsed content. Files are ordered **newest first** based on filename sorting (descending).
+
+On startup, the route backfills existing files from `output/` into SQLite. The read endpoint also performs a lightweight directory sync before querying so files added outside the API are picked up.
 
 #### Rate Limiting
 - **Limit**: Max 5 requests per 1-minute window per client key (`x-api-key` header, `req.ip`, or `x-forwarded-for`).

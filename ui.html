@@ -83,6 +83,7 @@
     .info-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:3px 0;font-size:.82rem}
     .info-lbl{color:#999;flex-shrink:0}
     .info-val{color:#ddd;text-align:right;word-break:break-word}
+    .info-val-2l{min-height:2.6em}
 
     /* misc */
     .err-box{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.5);border-radius:3px;padding:16px 20px;color:#fca5a5;text-align:center;margin:20px auto;max-width:420px}
@@ -344,7 +345,7 @@
     var bar = document.getElementById('sig-bar');
     if (noSig) {
       bar.className   = 'sig-bar lost';
-      bar.textContent = '\u26a0 NO SIGNAL \u2014 Last AIS position > 1 hour';
+      bar.textContent = '\u26a0 NO SIGNAL : Last AIS position > 1 hour';
     } else {
       bar.className   = 'sig-bar ok';
       bar.textContent = '\u2714 Signal OK';
@@ -361,7 +362,7 @@
         ['Latitude',          v.latitude  != null ? v.latitude.toFixed(6)  : '—'],
         ['Longitude',         v.longitude != null ? v.longitude.toFixed(6) : '—'],
         ['Last AIS Time',     fmtDate(v.time_of_latest_position)],
-        ['Position Received', v.position_received || '—'],
+        ['Position Received', v.position_received || '—', 'info-val-2l'],
       ]) +
       sec('Navigation', [
         ['Status',       v.navigational_status || '—'],
@@ -400,7 +401,7 @@
     rows.forEach(function(r) {
       h += '<div class="info-row">' +
            '<span class="info-lbl">' + esc(r[0]) + '</span>' +
-           '<span class="info-val">'  + esc(r[1]) + '</span>' +
+           '<span class="info-val' + (r[2] ? ' ' + r[2] : '') + '">'  + esc(r[1]) + '</span>' +
            '</div>';
     });
     return h + '</div>';

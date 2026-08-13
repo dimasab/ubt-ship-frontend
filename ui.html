@@ -1,3 +1,8 @@
+/*
+*
+* version: 2 -> cap increase from 100 to 500
+*
+*/
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -198,7 +203,7 @@
   // ── fetch ─────────────────────────────────────────────────────────────
 
   function init() {
-    fetch('/ubtship/read-json?limit=100&page=1')
+    fetch('/ubtship/read-json?limit=500&page=1')
       .then(function(r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();

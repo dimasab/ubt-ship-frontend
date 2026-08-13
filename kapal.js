@@ -1,7 +1,7 @@
 //******************************************* MULAI FILE KAPAL.JS *******************************************
 /**
  * 
- * Version: 9 -> fix redirect /ubtship/ui
+ * Version: 10 -> cap increase from 100 to 500
  * 
  * 
  */
@@ -423,7 +423,7 @@ router.post('/ubtship/create-json', (req, res) => {
 
 router.get('/ubtship/read-json', ubtshipRateLimit, async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 20));
+    const limit = Math.max(1, Math.min(500, parseInt(req.query.limit, 10) || 20));
 
     try {
         return res.json(await listSnapshotsFromDatabase(page, limit));

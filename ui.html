@@ -7,81 +7,80 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    html,body{height:100%;overflow:hidden;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#0a1628;color:#e0e6f0}
+    html,body{height:100%;overflow:hidden;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#111;color:#e8e8e8}
 
     /* ── loading ──────────────────────────────────────── */
-    #loading{position:fixed;inset:0;background:#0a1628;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:16px}
-    .spinner{width:48px;height:48px;border:4px solid #1a3a60;border-top-color:#38bdf8;border-radius:50%;animation:spin .9s linear infinite}
+    #loading{position:fixed;inset:0;background:#111;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:16px}
+    .spinner{width:48px;height:48px;border:4px solid #444;border-top-color:#22c55e;border-radius:50%;animation:spin .9s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
-    .loading-txt{color:#5a7a9a;font-size:.9rem}
+    .loading-txt{color:#aaa;font-size:.9rem}
 
     /* ── fleet screen ─────────────────────────────────── */
     #fleet-screen{height:100vh;overflow-y:auto;padding:24px;display:none}
     .fleet-hdr{text-align:center;padding:20px 0 30px}
-    .fleet-hdr h1{font-size:2rem;color:#38bdf8;letter-spacing:3px;text-shadow:0 0 24px rgba(56,189,248,.4)}
-    .fleet-hdr .sub{margin-top:8px;color:#5a7a9a;font-size:.88rem}
+    .fleet-hdr h1{font-size:2rem;color:#22c55e;letter-spacing:3px}
+    .fleet-hdr .sub{margin-top:8px;color:#aaa;font-size:.88rem}
     .ships-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;max-width:1200px;margin:0 auto}
 
-    .ship-card{background:linear-gradient(135deg,#0e2040,#0c1a34);border:1px solid #1a3a60;border-radius:12px;padding:20px;cursor:pointer;transition:transform .2s,border-color .2s,box-shadow .2s;position:relative;overflow:hidden}
-    .ship-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,#1a3a60,transparent);transition:background .2s}
-    .ship-card:hover{transform:translateY(-3px);border-color:#38bdf8;box-shadow:0 8px 28px rgba(56,189,248,.2)}
-    .ship-card:hover::before{background:linear-gradient(90deg,transparent,#38bdf8,transparent)}
-    .ship-card:active{transform:translateY(-1px)}
+    .ship-card{background:#1e1e1e;border:1px solid #555;border-radius:3px;padding:20px;cursor:pointer;transition:transform .08s,border-color .08s;position:relative;overflow:hidden}
+    .ship-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:#555;transition:background .08s}
+    .ship-card:hover{transform:translateY(-2px);border-color:#22c55e}
+    .ship-card:hover::before{background:#22c55e}
+    .ship-card:active{transform:translateY(0)}
 
     .card-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
     .sig-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-    .sig-ok{background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,.8);animation:pulse-ok 2s ease-in-out infinite}
-    .sig-lost{background:#ef4444;box-shadow:0 0 8px rgba(239,68,68,.8);animation:pulse-lost 1.5s ease-in-out infinite}
-    @keyframes pulse-ok{0%,100%{opacity:1}50%{opacity:.55}}
-    @keyframes pulse-lost{0%,100%{opacity:1}50%{opacity:.25}}
-    .card-name{font-size:1.1rem;font-weight:700;color:#e0f4ff;letter-spacing:.5px}
+    .sig-ok{background:#22c55e}
+    .sig-lost{background:#ef4444}
+    .card-name{font-size:1.1rem;font-weight:700;color:#f5f5f5;letter-spacing:.5px}
 
-    .card-badge{display:inline-block;font-size:.72rem;padding:3px 10px;border-radius:12px;margin-bottom:14px;font-weight:600;letter-spacing:.3px}
-    .st-moored{background:rgba(56,189,248,.12);color:#38bdf8;border:1px solid rgba(56,189,248,.3)}
-    .st-underway{background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.3)}
-    .st-anchor{background:rgba(234,179,8,.12);color:#fbbf24;border:1px solid rgba(234,179,8,.3)}
-    .st-other{background:rgba(168,85,247,.12);color:#c084fc;border:1px solid rgba(168,85,247,.3)}
+    .card-badge{display:inline-block;font-size:.72rem;padding:3px 10px;border-radius:3px;margin-bottom:14px;font-weight:600;letter-spacing:.3px}
+    .st-moored{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.5)}
+    .st-underway{background:rgba(34,197,94,.15);color:#86efac;border:1px solid rgba(34,197,94,.5)}
+    .st-anchor{background:rgba(234,179,8,.15);color:#fde68a;border:1px solid rgba(234,179,8,.5)}
+    .st-other{background:rgba(168,85,247,.15);color:#d8b4fe;border:1px solid rgba(168,85,247,.5)}
 
     .card-details{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:.8rem}
-    .card-details .lbl{color:#4a6a8a}
-    .card-details .val{color:#b0cce8}
+    .card-details .lbl{color:#999}
+    .card-details .val{color:#ddd}
 
     /* ── detail screen ────────────────────────────────── */
     #detail-screen{display:none;height:100vh;flex-direction:column}
-    .det-hdr{background:#0a1628;border-bottom:1px solid #1a3a60;padding:12px 20px;display:flex;align-items:center;gap:16px;flex-shrink:0;min-height:54px}
-    .btn-back{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.3);color:#38bdf8;padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.88rem;transition:background .15s}
-    .btn-back:hover{background:rgba(56,189,248,.22)}
-    .det-title{font-size:1.2rem;font-weight:700;color:#e0f4ff}
-    .det-imo{margin-left:auto;font-size:.8rem;color:#4a6a8a}
+    .det-hdr{background:#111;border-bottom:1px solid #555;padding:12px 20px;display:flex;align-items:center;gap:16px;flex-shrink:0;min-height:54px}
+    .btn-back{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.5);color:#4ade80;padding:7px 16px;border-radius:3px;cursor:pointer;font-size:.88rem;transition:background .08s}
+    .btn-back:hover{background:rgba(34,197,94,.22)}
+    .det-title{font-size:1.2rem;font-weight:700;color:#f5f5f5}
+    .det-imo{margin-left:auto;font-size:.8rem;color:#999}
 
     .det-body{display:flex;flex:1;overflow:hidden;min-height:0}
 
     /* map col */
     .map-col{flex:1;display:flex;flex-direction:column;min-width:0}
-    #map{flex:1;min-height:0;background:#0a1628}
-    .slider-wrap{background:#090f1e;border-top:1px solid #1a3a60;padding:14px 20px;flex-shrink:0}
-    .slider-ends{display:flex;justify-content:space-between;font-size:.72rem;color:#4a6a8a;margin-bottom:8px}
-    input[type=range]#time-slider{width:100%;-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;background:#1a3a60;outline:none;cursor:pointer}
-    input[type=range]#time-slider::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#38bdf8;cursor:pointer;box-shadow:0 0 10px rgba(56,189,248,.6);transition:transform .1s}
-    input[type=range]#time-slider::-webkit-slider-thumb:hover{transform:scale(1.2)}
-    input[type=range]#time-slider::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#38bdf8;cursor:pointer;border:none}
-    .slider-cur{text-align:center;margin-top:6px;font-size:.82rem;color:#38bdf8;min-height:1.2em}
+    #map{flex:1;min-height:0;background:#111}
+    .slider-wrap{background:#0d0d0d;border-top:1px solid #555;padding:14px 20px;flex-shrink:0}
+    .slider-ends{display:flex;justify-content:space-between;font-size:.72rem;color:#aaa;margin-bottom:8px}
+    .slider-track-wrap{position:relative}
+    input[type=range]#time-slider{width:100%;-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;background:#444;outline:none;cursor:pointer;position:relative;z-index:1}
+    input[type=range]#time-slider::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;opacity:0;cursor:pointer}
+    input[type=range]#time-slider::-moz-range-thumb{width:28px;height:28px;opacity:0;cursor:pointer;border:none}
+    .slider-ship{position:absolute;top:50%;transform:scale(-1.1, 1.1) translateY(-14px);font-size:1.5rem;line-height:1;pointer-events:none;z-index:2}
+    .slider-cur{text-align:center;margin-top:6px;font-size:.82rem;color:#4ade80;min-height:1.2em}
 
     /* info panel */
-    .info-col{width:340px;flex-shrink:0;background:#0c1a34;border-left:1px solid #1a3a60;display:flex;flex-direction:column;overflow:hidden}
+    .info-col{width:340px;flex-shrink:0;background:#161616;border-left:1px solid #555;display:flex;flex-direction:column;overflow:hidden}
     .sig-bar{padding:10px 16px;text-align:center;font-size:.82rem;font-weight:600;flex-shrink:0}
-    .sig-bar.ok{background:rgba(34,197,94,.12);color:#4ade80;border-bottom:1px solid rgba(34,197,94,.25)}
-    .sig-bar.lost{background:rgba(239,68,68,.12);color:#f87171;border-bottom:1px solid rgba(239,68,68,.25);animation:blink 2s ease-in-out infinite}
-    @keyframes blink{0%,100%{opacity:1}50%{opacity:.55}}
+    .sig-bar.ok{background:rgba(34,197,94,.15);color:#86efac;border-bottom:1px solid rgba(34,197,94,.4)}
+    .sig-bar.lost{background:rgba(239,68,68,.15);color:#fca5a5;border-bottom:1px solid rgba(239,68,68,.4);animation:blink .6s step-end infinite}
+    @keyframes blink{0%,50%{opacity:1}51%,100%{opacity:.4}}
     .info-scroll{overflow-y:auto;flex:1}
-    .info-sec{padding:14px 16px;border-bottom:1px solid #1a3a60}
-    .info-sec-ttl{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:#3a6a8a;margin-bottom:10px}
+    .info-sec{padding:14px 16px;border-bottom:1px solid #333}
+    .info-sec-ttl{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:#aaa;margin-bottom:10px}
     .info-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:3px 0;font-size:.82rem}
-    .info-lbl{color:#4a6a8a;flex-shrink:0}
-    .info-val{color:#b0cce8;text-align:right;word-break:break-word}
+    .info-lbl{color:#999;flex-shrink:0}
+    .info-val{color:#ddd;text-align:right;word-break:break-word}
 
     /* misc */
-    .err-box{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:16px 20px;color:#f87171;text-align:center;margin:20px auto;max-width:420px}
+    .err-box{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.5);border-radius:3px;padding:16px 20px;color:#fca5a5;text-align:center;margin:20px auto;max-width:420px}
   </style>
 </head>
 <body>
@@ -116,7 +115,10 @@
           <span id="lbl-old"></span>
           <span id="lbl-new"></span>
         </div>
-        <input type="range" id="time-slider" min="0" max="99" value="99"/>
+        <div class="slider-track-wrap">
+          <input type="range" id="time-slider" min="0" max="99" value="99"/>
+          <span class="slider-ship" id="slider-ship">🚢</span>
+        </div>
         <div class="slider-cur" id="slider-cur"></div>
       </div>
     </div>
@@ -170,19 +172,27 @@
   }
 
   function shipIcon(headingDeg, noSig) {
-    var color = noSig ? '#ef4444' : '#22d3ee';
-    var glow  = noSig ? '#ff8080' : '#67e8f9';
+    var color = noSig ? '#ef4444' : '#22c55e';
+    var glow  = noSig ? '#ff8080' : '#4ade80';
     var h = Number(headingDeg) || 0;
     return L.divIcon({
       className : '',
       iconSize  : [32, 32],
       iconAnchor: [16, 16],
       html: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32"' +
-            ' style="transform:rotate(' + h + 'deg);filter:drop-shadow(0 0 5px ' + glow + ')">' +
+            ' style="transform:rotate(' + h + 'deg)">'  +
             '<polygon points="16,3 23,29 16,25 9,29"' +
             ' fill="' + color + '" stroke="' + glow + '" stroke-width="1.5" stroke-linejoin="round"/>' +
             '</svg>',
     });
+  }
+
+  function posShip() {
+    var sl = document.getElementById('time-slider');
+    var sh = document.getElementById('slider-ship');
+    if (!sh || !sl || !sl.offsetWidth) return;
+    var pct = (sl.max > sl.min) ? (+sl.value - +sl.min) / (+sl.max - +sl.min) : 0;
+    sh.style.left = Math.round(pct * (sl.offsetWidth - 28)) + 'px';
   }
 
   // ── fetch ─────────────────────────────────────────────────────────────
@@ -282,6 +292,7 @@
 
     slider.oninput = function() {
       renderSnap((N - 1) - parseInt(slider.value, 10));
+      posShip();
     };
 
     // init Leaflet once
@@ -297,6 +308,7 @@
     setTimeout(function() {
       leafMap.invalidateSize();
       renderSnap(0); // show newest
+      posShip();
     }, 80);
   }
 
@@ -327,7 +339,7 @@
     var bar = document.getElementById('sig-bar');
     if (noSig) {
       bar.className   = 'sig-bar lost';
-      bar.textContent = '\u26a0 NO SIGNAL \u2014 Last AIS position > 1 hour before snapshot';
+      bar.textContent = '\u26a0 NO SIGNAL \u2014 Last AIS position > 1 hour';
     } else {
       bar.className   = 'sig-bar ok';
       bar.textContent = '\u2714 Signal OK';

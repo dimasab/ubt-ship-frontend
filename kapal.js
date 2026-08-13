@@ -1,7 +1,7 @@
 //******************************************* MULAI FILE KAPAL.JS *******************************************
 /**
  * 
- * Version: 8 -> add /ubtship/ui
+ * Version: 9 -> fix redirect /ubtship/ui
  * 
  * 
  */
@@ -433,11 +433,7 @@ router.get('/ubtship/read-json', ubtshipRateLimit, async (req, res) => {
     }
 });
 
-router.get('/ubtship/ui', (req, res) => {
-    res.redirect(301, '/ubtship/ui/');
-});
-
-router.get('/ubtship/ui/', (req, res) => {
+router.get(['/ubtship/ui', '/ubtship/ui/'], (req, res) => {
     res.sendFile(path.join(__dirname, 'ui.html'));
 });
 

@@ -1,6 +1,6 @@
 <!--
 *
-* version 3 : -> fix comment
+* version 4 : -> ports
 *
 -->
 <!DOCTYPE html>
@@ -84,6 +84,8 @@
     .info-lbl{color:#999;flex-shrink:0}
     .info-val{color:#ddd;text-align:right;word-break:break-word}
     .info-val-2l{min-height:2.6em}
+    .info-ports-meta{color:#777;font-size:.72rem;margin-bottom:8px}
+    .info-ports-count{color:#777;font-size:.72rem}
 
     /* misc */
     .err-box{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.5);border-radius:3px;padding:16px 20px;color:#fca5a5;text-align:center;margin:20px auto;max-width:420px}
@@ -142,6 +144,7 @@
 
   var snapshots      = [];   // API items, index 0 = newest
   var activeSnaps    = [];   // per-ship subset, same order (0 = newest)
+  var activePortStats = [];  // per-ship dock stats, computed once per openDetail()
   var leafMap        = null;
   var shipMarker     = null;
 
@@ -160,6 +163,59 @@
   function fmtShort(iso) {
     if (!iso) return '';
     try { return new Date(iso).toISOString().replace('T', ' ').slice(0, 16) + ' UTC'; } catch(e) { return String(iso); }
+  }
+
+  function fmtDuration(ms) {
+    if (ms == null || isNaN(ms) || ms < 0) return '—';
+    var totalMin = Math.round(ms / 60000);
+    var days  = Math.floor(totalMin / 1440);
+    var hours = Math.floor((totalMin % 1440) / 60);
+    var mins  = totalMin % 60;
+    var parts = [];
+    if (days)  parts.push(days + 'd');
+    if (hours) parts.push(hours + 'h');
+    if (!days && mins) parts.push(mins + 'm');
+    if (!parts.length) parts.push('<1m');
+    return parts.join(' ');
+  }
+
+  // Derives per-port dock visits from a ship's snapshot history (oldest -> newest),
+  // treating a contiguous run of snapshots sharing the same non-null current_port as one visit.
+  // Visit duration is approximated as (last snapshot in run) - (first snapshot in run).
+  function computeShipPortStats(shipSnaps) {
+    var chron = shipSnaps.slice().reverse(); // oldest first
+    var visits = [];
+    var curPort = null, curStart = null, curEnd = null;
+
+    chron.forEach(function(entry) {
+      var port = entry.vessel.current_port || null;
+      var t    = entry.generatedAt;
+      if (port) {
+        if (port === curPort) {
+          curEnd = t;
+        } else {
+          if (curPort) visits.push({ port: curPort, start: curStart, end: curEnd });
+          curPort = port; curStart = t; curEnd = t;
+        }
+      } else if (curPort) {
+        visits.push({ port: curPort, start: curStart, end: curEnd });
+        curPort = null; curStart = null; curEnd = null;
+      }
+    });
+    if (curPort) visits.push({ port: curPort, start: curStart, end: curEnd }); // still docked as of latest snapshot
+
+    var byPort = {};
+    visits.forEach(function(v) {
+      var dur = new Date(v.end) - new Date(v.start);
+      if (!byPort[v.port]) byPort[v.port] = { port: v.port, visits: 0, totalMs: 0 };
+      byPort[v.port].visits++;
+      byPort[v.port].totalMs += dur;
+    });
+
+    return Object.keys(byPort).map(function(p) {
+      var s = byPort[p];
+      return { port: p, visits: s.visits, avgMs: s.totalMs / s.visits };
+    }).sort(function(a, b) { return b.visits - a.visits; });
   }
 
   // Red icon if (snapshot generated_at) - (vessel time_of_latest_position) > 1 hour
@@ -281,6 +337,8 @@
 
     if (!activeSnaps.length) return;
 
+    activePortStats = computeShipPortStats(activeSnaps);
+
     document.getElementById('det-title').textContent = shipName;
     document.getElementById('det-imo').textContent   = 'IMO ' + (activeSnaps[0].vessel.imo || '—');
 
@@ -391,9 +449,31 @@
         ['Current Port',  v.current_port  || '—'],
         ['Dest. Port',    v.destination_port || '—'],
         ['Vessel Local',  fmtDate(v.vessel_local_time)],
-      ]);
+      ]) +
+      secPorts();
 
     document.getElementById('info-scroll').innerHTML = html;
+  }
+
+  function secPorts() {
+    var n     = activeSnaps.length;
+    var since = n ? activeSnaps[n - 1].generatedAt : null;
+
+    var h = '<div class="info-sec"><div class="info-sec-ttl">Ports</div>' +
+            '<div class="info-ports-meta">Data from ' + n + ' snapshot' + (n === 1 ? '' : 's') +
+            (since ? ' since ' + fmtShort(since) : '') + '</div>';
+
+    if (!activePortStats.length) {
+      h += '<div class="info-row"><span class="info-lbl">No port visits recorded</span></div>';
+    } else {
+      activePortStats.forEach(function(s) {
+        h += '<div class="info-row">' +
+             '<span class="info-lbl">' + esc(s.port) + ' <span class="info-ports-count">(' + s.visits + 'x)</span></span>' +
+             '<span class="info-val">' + fmtDuration(s.avgMs) + '</span>' +
+             '</div>';
+      });
+    }
+    return h + '</div>';
   }
 
   function sec(title, rows) {

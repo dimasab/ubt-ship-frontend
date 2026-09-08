@@ -1,6 +1,6 @@
 <!--
 *
-* version 5 : -> ports2
+* version 6 : -> time_of_latest_position showing correct time
 *
 -->
 <!DOCTYPE html>
@@ -402,8 +402,9 @@
     // signal bar
     var bar = document.getElementById('sig-bar');
     if (noSig) {
+      var ago = (genAt && v.time_of_latest_position) ? new Date(genAt) - new Date(v.time_of_latest_position) : null;
       bar.className   = 'sig-bar lost';
-      bar.textContent = '\u26a0 NO SIGNAL : Last AIS position > 1 hour';
+      bar.textContent = '\u26a0 NO SIGNAL : Last AIS position ' + (ago != null ? fmtDuration(ago) + ' ago' : 'unknown');
     } else {
       bar.className   = 'sig-bar ok';
       bar.textContent = '\u2714 Signal OK';

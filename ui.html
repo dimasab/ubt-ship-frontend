@@ -1,6 +1,6 @@
 <!--
 *
-* version 4 : -> ports
+* version 5 : -> ports2
 *
 -->
 <!DOCTYPE html>
@@ -466,6 +466,7 @@
     if (!activePortStats.length) {
       h += '<div class="info-row"><span class="info-lbl">No port visits recorded</span></div>';
     } else {
+      h += '<div class="info-row"><span class="info-lbl"></span><span class="info-val info-ports-count">avg / visit</span></div>';
       activePortStats.forEach(function(s) {
         h += '<div class="info-row">' +
              '<span class="info-lbl">' + esc(s.port) + ' <span class="info-ports-count">(' + s.visits + 'x)</span></span>' +

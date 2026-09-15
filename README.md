@@ -1,3 +1,5 @@
+![ubt ship tracking frontend screenshot - redacted](ss_ubtship.png)
+
 # UBTSHIP API Documentation
 
 The UBTSHIP module provides endpoints for saving and retrieving ship data JSON files. Saved files are stored on disk in `rute/ubtship/output/` and indexed into a local SQLite database at `rute/ubtship/ubtship.db` for faster reads.

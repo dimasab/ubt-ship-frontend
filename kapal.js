@@ -1,7 +1,7 @@
 //******************************************* MULAI FILE KAPAL.JS *******************************************
 /**
  * 
- * Version: 11 -> fix api robustness oh yeah right
+ * Version: 11 -> fix api robustness
  * 
  * 
  */

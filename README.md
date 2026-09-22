@@ -93,8 +93,7 @@ Creates or overwrites a `.json` file in the `rute/ubtship/output/` directory and
   ```
 
 - **`401 Unauthorized`**
-  Missing, invalid, or wrong-length bearer tokens and body secrets are rejected
-  without throwing. The body secret must be a string.
+  Missing, invalid, or wrong-length bearer tokens and body secrets are rejected without throwing. The body secret must be a string.
   ```json
   {
     "error": "Unauthorized"
@@ -127,16 +126,9 @@ On startup, the route backfills existing files from `output/` into SQLite. The r
   - `X-RateLimit-Reset`: Unix timestamp when rate limit resets
   - `Retry-After`: Whole seconds until another request is allowed (429 responses only)
 
-The parent application's `trust proxy` configuration must match the deployment.
-Leave the Express default (`false`) for direct connections. Behind a reverse
-proxy, trust only its actual addresses/subnets and ensure the proxy overwrites
-forwarded headers. Do not enable blanket `trust proxy: true` for arbitrary
-clients. See the [Express proxy guide](https://expressjs.com/en/guide/behind-proxies.html).
+The parent application's `trust proxy` configuration must match the deployment. Leave the Express default (`false`) for direct connections. Behind a reverse proxy, trust only its actual addresses/subnets and ensure the proxy overwrites forwarded headers. Do not enable blanket `trust proxy: true` for arbitrary clients. See the [Express proxy guide](https://expressjs.com/en/guide/behind-proxies.html).
 
-This limiter uses process-local memory and tracks individual IP addresses.
-Workers/replicas do not share quotas, restarts reset them, and clients sharing an
-IP share a quota. Use an edge limiter or a shared rate-limit store for a global
-quota across multiple instances; consider IPv6 subnet grouping where needed.
+This limiter uses process-local memory and tracks individual IP addresses. Workers/replicas do not share quotas, restarts reset them, and clients sharing an IP share a quota. Use an edge limiter or a shared rate-limit store for a global quota across multiple instances; consider IPv6 subnet grouping where needed.
 
 #### Query Parameters
 
@@ -212,7 +204,4 @@ Run with Node.js 18 or later; the regression suite requires no extra packages:
 node --test test/api-robustness.test.cjs
 ```
 
-The suite executes this router's actual registered handlers with mocked storage
-and framework registration. It checks authentication, malformed bodies and
-filenames, quota bypass attempts, reset boundaries, and retry headers. It does
-not start a live service or validate the deployment's proxy configuration.
+The suite executes this router's actual registered handlers with mocked storage and framework registration. It checks authentication, malformed bodies and filenames, quota bypass attempts, reset boundaries, and retry headers. It does not start a live service or validate the deployment's proxy configuration.

@@ -3,8 +3,8 @@
 .env
 # START ALLOWING
 !.gitignore
-!kapal.js
 !README.md
+!kapal.js
 !ui.html
 !test/
 !test/api-robustness.test.cjs

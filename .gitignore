@@ -6,3 +6,5 @@
 !kapal.js
 !README.md
 !ui.html
+!test/
+!test/api-robustness.test.cjs

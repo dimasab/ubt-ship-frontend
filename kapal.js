@@ -1,7 +1,7 @@
 //******************************************* MULAI FILE KAPAL.JS *******************************************
 /**
  * 
- * Version: 10 -> cap increase from 100 to 500
+ * Version: 11 -> fix api robustness oh yeah right
  * 
  * 
  */
@@ -333,10 +333,12 @@ syncOutputDirectoryToDatabase().catch((err) => {
 });
 
 function ubtshipRateLimit(req, res, next) {
-    const key = (req.headers['x-api-key'] || req.ip || req.headers['x-forwarded-for'] || 'unknown').toString();
+    // Express resolves req.ip according to the application's trust proxy policy.
+    // Never use an unverified client header as a quota identity.
+    const key = req.ip || (req.socket && req.socket.remoteAddress) || 'unknown';
     const now = Date.now();
     let entry = rateLimitStore.get(key);
-    if (!entry || now > entry.resetAt) {
+    if (!entry || now >= entry.resetAt) {
         entry = { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS };
     } else {
         entry.count += 1;
@@ -348,6 +350,7 @@ function ubtshipRateLimit(req, res, next) {
     res.set('X-RateLimit-Reset', String(Math.ceil(entry.resetAt / 1000)));
 
     if (entry.count > RATE_LIMIT_MAX) {
+        res.set('Retry-After', String(Math.max(1, Math.ceil((entry.resetAt - now) / 1000))));
         return res.status(429).json({ error: `Too many requests (max ${RATE_LIMIT_MAX} per minute)` });
     }
 
@@ -366,18 +369,25 @@ router.post('/ubtship/create-json', (req, res) => {
         console.error('ubtship: UBTSHIP_API_KEY env variable is not set');
         return res.status(500).json({ error: 'Server misconfiguration' });
     }
-    if (!crypto.timingSafeEqual(Buffer.from(bearerToken), Buffer.from(UBTSHIP_API_KEY))) {
+    const tokenBuffer = Buffer.from(bearerToken);
+    const expectedTokenBuffer = Buffer.from(UBTSHIP_API_KEY);
+    if (tokenBuffer.length !== expectedTokenBuffer.length || !crypto.timingSafeEqual(tokenBuffer, expectedTokenBuffer)) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
     // --- Body secret verification ---
-    const { fileName, fileContent, secret } = req.body;
-
     if (!UBTSHIP_BODY_SECRET) {
         console.error('ubtship: UBTSHIP_BODY_SECRET env variable is not set');
         return res.status(500).json({ error: 'Server misconfiguration' });
     }
-    const secretBuffer = Buffer.from(String(secret || ''));
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+        return res.status(400).json({ error: 'JSON object body is required' });
+    }
+    const { fileName, fileContent, secret } = req.body;
+    if (typeof secret !== 'string') {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const secretBuffer = Buffer.from(secret);
     const expectedBuffer = Buffer.from(UBTSHIP_BODY_SECRET);
     if (secretBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(secretBuffer, expectedBuffer)) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -385,6 +395,9 @@ router.post('/ubtship/create-json', (req, res) => {
 
     if (!fileName || fileContent === undefined) {
         return res.status(400).json({ error: 'fileName and fileContent are required' });
+    }
+    if (typeof fileName !== 'string' || fileName.includes('\0')) {
+        return res.status(400).json({ error: 'Invalid fileName' });
     }
 
     const safeName = path.basename(fileName);

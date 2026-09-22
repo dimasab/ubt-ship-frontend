@@ -12,8 +12,7 @@ const SECRET = 'test-body-secret';
 const SOURCE_PATH = path.resolve(__dirname, '..', 'kapal.js');
 const source = fs.readFileSync(SOURCE_PATH, 'utf8');
 
-// Run the production route handlers, replacing only framework registration,
-// storage I/O, the environment and the clock. Nothing contacts a real service.
+// Run the production route handlers, replacing only framework registration, storage I/O, the environment and the clock. Nothing contacts a real service.
 async function loadRouter({ token = TOKEN, secret = SECRET } = {}) {
     const routes = new Map();
     const writes = [];

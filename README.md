@@ -1,3 +1,5 @@
+-------------------------------ok this frontend-only repo can go public-------------------------------
+
 ![ubt ship tracking frontend screenshot - redacted](ss_ubtship.png)
 
 # UBTSHIP API Documentation

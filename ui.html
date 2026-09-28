@@ -1,6 +1,6 @@
 <!--
 *
-* version 8 : -> static map
+* version 9 : -> persistent tooltip
 *
 -->
 <!DOCTYPE html>
@@ -357,6 +357,30 @@
     show('fleet-screen', 'block');
   }
 
+  function initMap() {
+    if (leafMap) return;
+    leafMap = L.map('map', { zoomControl: true }).setView([0, 90], 3);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(leafMap);
+
+    var sliderWrap = document.querySelector('.slider-wrap');
+    if (sliderWrap) {
+      L.DomEvent.disableClickPropagation(sliderWrap);
+      L.DomEvent.disableScrollPropagation(sliderWrap);
+    }
+    var infoCol = document.querySelector('.info-col');
+    if (infoCol) {
+      L.DomEvent.disableClickPropagation(infoCol);
+      L.DomEvent.disableScrollPropagation(infoCol);
+    }
+    var detHdr = document.querySelector('.det-hdr');
+    if (detHdr) {
+      L.DomEvent.disableClickPropagation(detHdr);
+    }
+  }
+
   // ── detail screen ─────────────────────────────────────────────────────
 
   function openAllShips() {
@@ -388,13 +412,7 @@
     };
 
     show('detail-screen', 'flex');
-    if (!leafMap) {
-      leafMap = L.map('map', { zoomControl: true }).setView([0, 90], 3);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      }).addTo(leafMap);
-    }
+    initMap();
 
     setTimeout(function() {
       leafMap.invalidateSize();
@@ -445,15 +463,8 @@
       posShip();
     };
 
-    // init Leaflet once
     show('detail-screen', 'flex');
-    if (!leafMap) {
-      leafMap = L.map('map', { zoomControl: true }).setView([0, 90], 3);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      }).addTo(leafMap);
-    }
+    initMap();
 
     setTimeout(function() {
       leafMap.invalidateSize();
@@ -502,14 +513,18 @@
           '</div>';
 
         if (allShipMarkers[v.name]) {
+          var wasOpen = allShipMarkers[v.name].isPopupOpen();
           allShipMarkers[v.name].setLatLng([v.latitude, v.longitude]);
           allShipMarkers[v.name].setIcon(icon);
           if (allShipMarkers[v.name].getPopup()) {
             allShipMarkers[v.name].getPopup().setContent(popHtml);
           }
+          if (wasOpen) {
+            allShipMarkers[v.name].openPopup();
+          }
         } else {
           var marker = L.marker([v.latitude, v.longitude], { icon: icon }).addTo(leafMap);
-          marker.bindPopup(popHtml);
+          marker.bindPopup(popHtml, { autoPan: false });
           allShipMarkers[v.name] = marker;
         }
 
@@ -616,11 +631,27 @@
     // update map marker
     if (v.latitude != null && v.longitude != null) {
       var icon = shipIcon(hdg, noSig);
+      var popHtml =
+        '<div style="font-family:sans-serif;font-size:12px;color:#111;">' +
+        '<b style="font-size:14px;">' + esc(v.name) + '</b><br>' +
+        'Status: ' + esc(v.navigational_status || '—') + '<br>' +
+        'Speed: ' + (v.speed_kn != null ? v.speed_kn + ' kn' : '—') + '<br>' +
+        'Destination: ' + esc(v.matched_destination || v.reported_destination || '—') +
+        '</div>';
+
       if (!shipMarker) {
         shipMarker = L.marker([v.latitude, v.longitude], { icon: icon }).addTo(leafMap);
+        shipMarker.bindPopup(popHtml, { autoPan: false });
       } else {
+        var wasOpen = shipMarker.isPopupOpen();
         shipMarker.setLatLng([v.latitude, v.longitude]);
         shipMarker.setIcon(icon);
+        if (shipMarker.getPopup()) {
+          shipMarker.getPopup().setContent(popHtml);
+        }
+        if (wasOpen) {
+          shipMarker.openPopup();
+        }
       }
       if (isInitial) {
         leafMap.setView([v.latitude, v.longitude], 6);

@@ -1,6 +1,6 @@
 <!--
 *
-* version 7 : -> add all ships mode 1
+* version 8 : -> static map
 *
 -->
 <!DOCTYPE html>
@@ -383,7 +383,7 @@
     document.getElementById('lbl-new').textContent = fmtShort(newestAt);
 
     slider.oninput = function() {
-      renderSnap((N - 1) - parseInt(slider.value, 10));
+      renderSnap((N - 1) - parseInt(slider.value, 10), false);
       posShip();
     };
 
@@ -398,7 +398,7 @@
 
     setTimeout(function() {
       leafMap.invalidateSize();
-      renderSnap(0);
+      renderSnap(0, true);
       posShip();
     }, 80);
   }
@@ -441,7 +441,7 @@
     document.getElementById('lbl-new').textContent = fmtShort(activeSnaps[0].generatedAt);
 
     slider.oninput = function() {
-      renderSnap((N - 1) - parseInt(slider.value, 10));
+      renderSnap((N - 1) - parseInt(slider.value, 10), false);
       posShip();
     };
 
@@ -457,20 +457,20 @@
 
     setTimeout(function() {
       leafMap.invalidateSize();
-      renderSnap(0); // show newest
+      renderSnap(0, true); // show newest
       posShip();
     }, 80);
   }
 
-  function renderSnap(idx) {
+  function renderSnap(idx, isInitial) {
     if (isAllShipsMode) {
-      renderAllShipsSnap(idx);
+      renderAllShipsSnap(idx, isInitial);
     } else {
-      renderSingleShipSnap(idx);
+      renderSingleShipSnap(idx, isInitial);
     }
   }
 
-  function renderAllShipsSnap(idx) {
+  function renderAllShipsSnap(idx, isInitial) {
     var snap = snapshots[idx];
     if (!snap || !snap.content) return;
     var vessels = snap.content.vessels || [];
@@ -479,20 +479,19 @@
     document.getElementById('slider-cur').textContent =
       genAt ? 'Snapshot: ' + fmtDate(genAt) : '';
 
-    clearMapMarkers();
-
     var latLngs   = [];
     var okCount   = 0;
     var lostCount = 0;
+    var currentVessels = {};
 
     vessels.forEach(function(v) {
       var noSig = isNoSignal(genAt, v.time_of_latest_position);
       if (noSig) lostCount++; else okCount++;
 
       if (v.latitude != null && v.longitude != null) {
+        currentVessels[v.name] = true;
         var hdg    = v.true_heading_deg != null ? v.true_heading_deg : (v.course_deg != null ? v.course_deg : 0);
         var icon   = shipIcon(hdg, noSig);
-        var marker = L.marker([v.latitude, v.longitude], { icon: icon }).addTo(leafMap);
 
         var popHtml =
           '<div style="font-family:sans-serif;font-size:12px;color:#111;">' +
@@ -501,14 +500,31 @@
           'Speed: ' + (v.speed_kn != null ? v.speed_kn + ' kn' : '—') + '<br>' +
           'Destination: ' + esc(v.matched_destination || v.reported_destination || '—') +
           '</div>';
-        marker.bindPopup(popHtml);
 
-        allShipMarkers[v.name] = marker;
+        if (allShipMarkers[v.name]) {
+          allShipMarkers[v.name].setLatLng([v.latitude, v.longitude]);
+          allShipMarkers[v.name].setIcon(icon);
+          if (allShipMarkers[v.name].getPopup()) {
+            allShipMarkers[v.name].getPopup().setContent(popHtml);
+          }
+        } else {
+          var marker = L.marker([v.latitude, v.longitude], { icon: icon }).addTo(leafMap);
+          marker.bindPopup(popHtml);
+          allShipMarkers[v.name] = marker;
+        }
+
         latLngs.push([v.latitude, v.longitude]);
       }
     });
 
-    if (latLngs.length > 0) {
+    Object.keys(allShipMarkers).forEach(function(sName) {
+      if (!currentVessels[sName]) {
+        leafMap.removeLayer(allShipMarkers[sName]);
+        delete allShipMarkers[sName];
+      }
+    });
+
+    if (isInitial && latLngs.length > 0) {
       var bounds = L.latLngBounds(latLngs);
       leafMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 10 });
     }
@@ -586,7 +602,7 @@
     });
   }
 
-  function renderSingleShipSnap(idx) {
+  function renderSingleShipSnap(idx, isInitial) {
     var entry = activeSnaps[idx];
     if (!entry) return;
     var v     = entry.vessel;
@@ -602,10 +618,12 @@
       var icon = shipIcon(hdg, noSig);
       if (!shipMarker) {
         shipMarker = L.marker([v.latitude, v.longitude], { icon: icon }).addTo(leafMap);
-        leafMap.setView([v.latitude, v.longitude], 6);
       } else {
         shipMarker.setLatLng([v.latitude, v.longitude]);
         shipMarker.setIcon(icon);
+      }
+      if (isInitial) {
+        leafMap.setView([v.latitude, v.longitude], 6);
       }
     }
 

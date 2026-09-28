@@ -1,6 +1,6 @@
 <!--
 *
-* version 6 : -> time_of_latest_position showing correct time
+* version 7 : -> add all ships mode
 *
 -->
 <!DOCTYPE html>
@@ -32,6 +32,10 @@
     .ship-card:hover{transform:translateY(-2px);border-color:#22c55e}
     .ship-card:hover::before{background:#22c55e}
     .ship-card:active{transform:translateY(0)}
+
+    .card-all-ships{background:linear-gradient(135deg,#1c2d23 0%,#1e1e1e 100%);border:1px solid #22c55e}
+    .card-all-ships::before{background:#22c55e !important}
+    .card-all-ships:hover{border-color:#4ade80;box-shadow:0 0 14px rgba(34,197,94,.25)}
 
     .card-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
     .sig-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
@@ -147,6 +151,23 @@
   var activePortStats = [];  // per-ship dock stats, computed once per openDetail()
   var leafMap        = null;
   var shipMarker     = null;
+  var isAllShipsMode = false;
+  var allShipMarkers = {};   // map of shipName -> Leaflet Marker
+
+  function clearMapMarkers() {
+    if (shipMarker) {
+      if (leafMap) leafMap.removeLayer(shipMarker);
+      shipMarker = null;
+    }
+    if (allShipMarkers) {
+      Object.keys(allShipMarkers).forEach(function(key) {
+        if (leafMap && allShipMarkers[key]) {
+          leafMap.removeLayer(allShipMarkers[key]);
+        }
+      });
+      allShipMarkers = {};
+    }
+  }
 
   // ── helpers ──────────────────────────────────────────────────────────
 
@@ -292,7 +313,26 @@
 
     if (!vessels.length) {
       grid.innerHTML = '<div class="err-box">No vessels in latest snapshot.</div>';
+      show('fleet-screen', 'block');
+      return;
     }
+
+    // "All Ships" selector card
+    var allCard = document.createElement('div');
+    allCard.className = 'ship-card card-all-ships';
+    allCard.innerHTML =
+      '<div class="card-top">' +
+        '<span class="sig-dot sig-ok"></span>' +
+        '<span class="card-name" style="color:#4ade80">\uD83D\uDDFA\uFE0F All Ships Overview</span>' +
+      '</div>' +
+      '<div class="card-badge st-underway">FLEET MAP</div>' +
+      '<div class="card-details">' +
+        '<span class="lbl">Fleet Size</span><span class="val">' + vessels.length + ' ships</span>' +
+        '<span class="lbl">Map View</span><span class="val">All vessels together</span>' +
+        '<span class="lbl">Tracking</span><span class="val">Live & History</span>' +
+      '</div>';
+    allCard.addEventListener('click', function() { openAllShips(); });
+    grid.appendChild(allCard);
 
     vessels.forEach(function(v) {
       var noSig = isNoSignal(genAt, v.time_of_latest_position);
@@ -319,7 +359,53 @@
 
   // ── detail screen ─────────────────────────────────────────────────────
 
+  function openAllShips() {
+    isAllShipsMode = true;
+    clearMapMarkers();
+    hide('fleet-screen');
+
+    if (!snapshots.length) return;
+
+    var latestVessels = (snapshots[0] && snapshots[0].content && snapshots[0].content.vessels) || [];
+    document.getElementById('det-title').textContent = '\uD83D\uDDFA\uFE0F All Ships Overview';
+    document.getElementById('det-imo').textContent   = latestVessels.length + ' Vessel(s) Tracked';
+
+    var N      = snapshots.length;
+    var slider = document.getElementById('time-slider');
+    slider.min   = 0;
+    slider.max   = N - 1;
+    slider.value = N - 1;
+
+    var oldestAt = snapshots[N - 1].content && snapshots[N - 1].content.generated_at;
+    var newestAt = snapshots[0].content && snapshots[0].content.generated_at;
+
+    document.getElementById('lbl-old').textContent = fmtShort(oldestAt);
+    document.getElementById('lbl-new').textContent = fmtShort(newestAt);
+
+    slider.oninput = function() {
+      renderSnap((N - 1) - parseInt(slider.value, 10));
+      posShip();
+    };
+
+    show('detail-screen', 'flex');
+    if (!leafMap) {
+      leafMap = L.map('map', { zoomControl: true }).setView([0, 90], 3);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }).addTo(leafMap);
+    }
+
+    setTimeout(function() {
+      leafMap.invalidateSize();
+      renderSnap(0);
+      posShip();
+    }, 80);
+  }
+
   function openDetail(shipName) {
+    isAllShipsMode = false;
+    clearMapMarkers();
     hide('fleet-screen');
 
     // collect this ship's entries across all snapshots, preserving newest-first order
@@ -377,6 +463,130 @@
   }
 
   function renderSnap(idx) {
+    if (isAllShipsMode) {
+      renderAllShipsSnap(idx);
+    } else {
+      renderSingleShipSnap(idx);
+    }
+  }
+
+  function renderAllShipsSnap(idx) {
+    var snap = snapshots[idx];
+    if (!snap || !snap.content) return;
+    var vessels = snap.content.vessels || [];
+    var genAt   = snap.content.generated_at;
+
+    document.getElementById('slider-cur').textContent =
+      genAt ? 'Snapshot: ' + fmtDate(genAt) : '';
+
+    clearMapMarkers();
+
+    var latLngs   = [];
+    var okCount   = 0;
+    var lostCount = 0;
+
+    vessels.forEach(function(v) {
+      var noSig = isNoSignal(genAt, v.time_of_latest_position);
+      if (noSig) lostCount++; else okCount++;
+
+      if (v.latitude != null && v.longitude != null) {
+        var hdg    = v.true_heading_deg != null ? v.true_heading_deg : (v.course_deg != null ? v.course_deg : 0);
+        var icon   = shipIcon(hdg, noSig);
+        var marker = L.marker([v.latitude, v.longitude], { icon: icon }).addTo(leafMap);
+
+        var popHtml =
+          '<div style="font-family:sans-serif;font-size:12px;color:#111;">' +
+          '<b style="font-size:14px;">' + esc(v.name) + '</b><br>' +
+          'Status: ' + esc(v.navigational_status || '—') + '<br>' +
+          'Speed: ' + (v.speed_kn != null ? v.speed_kn + ' kn' : '—') + '<br>' +
+          'Destination: ' + esc(v.matched_destination || v.reported_destination || '—') +
+          '</div>';
+        marker.bindPopup(popHtml);
+
+        allShipMarkers[v.name] = marker;
+        latLngs.push([v.latitude, v.longitude]);
+      }
+    });
+
+    if (latLngs.length > 0) {
+      var bounds = L.latLngBounds(latLngs);
+      leafMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 10 });
+    }
+
+    var bar = document.getElementById('sig-bar');
+    if (lostCount > 0) {
+      bar.className   = 'sig-bar lost';
+      bar.textContent = '\u26a0 Fleet Status: ' + okCount + ' Signal OK, ' + lostCount + ' Signal Lost';
+    } else {
+      bar.className   = 'sig-bar ok';
+      bar.textContent = '\u2714 Fleet Status: All ' + okCount + ' Signals OK';
+    }
+
+    renderAllShipsInfo(vessels, genAt);
+  }
+
+  function renderAllShipsInfo(vessels, genAt) {
+    var html = '<div class="info-sec"><div class="info-sec-ttl">Fleet Vessels (' + vessels.length + ')</div>';
+
+    if (!vessels.length) {
+      html += '<div class="info-row"><span class="info-lbl">No vessels in snapshot</span></div></div>';
+      document.getElementById('info-scroll').innerHTML = html;
+      return;
+    }
+
+    vessels.forEach(function(v) {
+      var noSig = isNoSignal(genAt, v.time_of_latest_position);
+      html +=
+        '<div class="all-vessel-card" style="background:#222;border:1px solid #444;border-radius:4px;padding:10px;margin-bottom:10px;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">' +
+            '<div style="display:flex;align-items:center;gap:6px;">' +
+              '<span class="sig-dot ' + (noSig ? 'sig-lost' : 'sig-ok') + '"></span>' +
+              '<strong style="color:#f5f5f5;font-size:0.95rem;">' + esc(v.name) + '</strong>' +
+            '</div>' +
+            '<span class="card-badge ' + statusClass(v.navigational_status) + '" style="margin:0;font-size:0.68rem;padding:2px 6px;">' + esc(v.navigational_status || 'Unknown') + '</span>' +
+          '</div>' +
+          '<div class="card-details" style="font-size:0.78rem;gap:3px 8px;margin-bottom:8px;">' +
+            '<span class="lbl">Speed</span><span class="val">' + (v.speed_kn != null ? v.speed_kn + ' kn' : '—') + '</span>' +
+            '<span class="lbl">Heading</span><span class="val">' + (v.true_heading_deg != null ? v.true_heading_deg + '°' : '—') + '</span>' +
+            '<span class="lbl">Lat / Lng</span><span class="val">' + (v.latitude != null ? v.latitude.toFixed(4) + ', ' + v.longitude.toFixed(4) : '—') + '</span>' +
+            '<span class="lbl">Dest</span><span class="val">' + esc(v.matched_destination || v.reported_destination || '—') + '</span>' +
+          '</div>' +
+          '<div style="display:flex;gap:6px;">' +
+            '<button class="btn-vessel-focus" data-ship="' + esc(v.name) + '" style="flex:1;background:#333;border:1px solid #666;color:#ccc;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.75rem;">\uD83C\uDFAF Center Map</button>' +
+            '<button class="btn-vessel-open" data-ship="' + esc(v.name) + '" style="flex:1;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.5);color:#4ade80;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.75rem;">\uD83D\uDD0D Detail</button>' +
+          '</div>' +
+        '</div>';
+    });
+
+    html += '</div>';
+
+    var container = document.getElementById('info-scroll');
+    container.innerHTML = html;
+
+    var focusBtns = container.querySelectorAll('.btn-vessel-focus');
+    focusBtns.forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var sName = btn.getAttribute('data-ship');
+        var m = allShipMarkers[sName];
+        if (m) {
+          leafMap.setView(m.getLatLng(), 10);
+          m.openPopup();
+        }
+      });
+    });
+
+    var openBtns = container.querySelectorAll('.btn-vessel-open');
+    openBtns.forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var sName = btn.getAttribute('data-ship');
+        openDetail(sName);
+      });
+    });
+  }
+
+  function renderSingleShipSnap(idx) {
     var entry = activeSnaps[idx];
     if (!entry) return;
     var v     = entry.vessel;
@@ -494,7 +704,7 @@
   document.getElementById('btn-back').addEventListener('click', function() {
     hide('detail-screen');
     show('fleet-screen', 'block');
-    if (shipMarker) { leafMap.removeLayer(shipMarker); shipMarker = null; }
+    clearMapMarkers();
   });
 
   // ── util ──────────────────────────────────────────────────────────────

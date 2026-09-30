@@ -1,6 +1,6 @@
 <!--
 *
-* version 9 : -> persistent tooltip
+* version 10 : -> port overview screen
 *
 -->
 <!DOCTYPE html>
@@ -36,6 +36,10 @@
     .card-all-ships{background:linear-gradient(135deg,#1c2d23 0%,#1e1e1e 100%);border:1px solid #22c55e}
     .card-all-ships::before{background:#22c55e !important}
     .card-all-ships:hover{border-color:#4ade80;box-shadow:0 0 14px rgba(34,197,94,.25)}
+
+    .card-ports{background:linear-gradient(135deg,#2e250b 0%,#1e1e1e 100%);border:1px solid #eab308}
+    .card-ports::before{background:#eab308 !important}
+    .card-ports:hover{border-color:#fde047;box-shadow:0 0 14px rgba(234,179,8,.25)}
 
     .card-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
     .sig-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
@@ -80,6 +84,7 @@
     .sig-bar{padding:10px 16px;text-align:center;font-size:.82rem;font-weight:600;flex-shrink:0}
     .sig-bar.ok{background:rgba(34,197,94,.15);color:#86efac;border-bottom:1px solid rgba(34,197,94,.4)}
     .sig-bar.lost{background:rgba(239,68,68,.15);color:#fca5a5;border-bottom:1px solid rgba(239,68,68,.4);animation:blink .6s step-end infinite}
+    .sig-bar.port{background:rgba(234,179,8,.15);color:#fde047;border-bottom:1px solid rgba(234,179,8,.4)}
     @keyframes blink{0%,50%{opacity:1}51%,100%{opacity:.4}}
     .info-scroll{overflow-y:auto;flex:1}
     .info-sec{padding:14px 16px;border-bottom:1px solid #333}
@@ -122,7 +127,7 @@
   <div class="det-body">
     <div class="map-col">
       <div id="map"></div>
-      <div class="slider-wrap">
+      <div class="slider-wrap" id="slider-wrap">
         <div class="slider-ends">
           <span id="lbl-old"></span>
           <span id="lbl-new"></span>
@@ -152,7 +157,9 @@
   var leafMap        = null;
   var shipMarker     = null;
   var isAllShipsMode = false;
+  var isPortsMode    = false;
   var allShipMarkers = {};   // map of shipName -> Leaflet Marker
+  var allPortMarkers = [];   // array of Leaflet circle markers
 
   function clearMapMarkers() {
     if (shipMarker) {
@@ -166,6 +173,12 @@
         }
       });
       allShipMarkers = {};
+    }
+    if (allPortMarkers && allPortMarkers.length > 0) {
+      allPortMarkers.forEach(function(m) {
+        if (leafMap) leafMap.removeLayer(m);
+      });
+      allPortMarkers = [];
     }
   }
 
@@ -334,6 +347,23 @@
     allCard.addEventListener('click', function() { openAllShips(); });
     grid.appendChild(allCard);
 
+    // "Ports Overview" selector card
+    var portCard = document.createElement('div');
+    portCard.className = 'ship-card card-ports';
+    portCard.innerHTML =
+      '<div class="card-top">' +
+        '<span class="sig-dot" style="background:#eab308"></span>' +
+        '<span class="card-name" style="color:#fde047">\u2693\uFE0F Ports Overview</span>' +
+      '</div>' +
+      '<div class="card-badge st-anchor">GLOBAL STATS</div>' +
+      '<div class="card-details">' +
+        '<span class="lbl">Focus</span><span class="val">Most Docked Ports</span>' +
+        '<span class="lbl">Metrics</span><span class="val">Visits & Durations</span>' +
+        '<span class="lbl">Tracking</span><span class="val">All-Time History</span>' +
+      '</div>';
+    portCard.addEventListener('click', function() { openPortsOverview(); });
+    grid.appendChild(portCard);
+
     vessels.forEach(function(v) {
       var noSig = isNoSignal(genAt, v.time_of_latest_position);
       var card  = document.createElement('div');
@@ -385,8 +415,10 @@
 
   function openAllShips() {
     isAllShipsMode = true;
+    isPortsMode = false;
     clearMapMarkers();
     hide('fleet-screen');
+    document.getElementById('slider-wrap').style.display = 'block';
 
     if (!snapshots.length) return;
 
@@ -423,8 +455,10 @@
 
   function openDetail(shipName) {
     isAllShipsMode = false;
+    isPortsMode = false;
     clearMapMarkers();
     hide('fleet-screen');
+    document.getElementById('slider-wrap').style.display = 'block';
 
     // collect this ship's entries across all snapshots, preserving newest-first order
     activeSnaps = snapshots
@@ -470,6 +504,25 @@
       leafMap.invalidateSize();
       renderSnap(0, true); // show newest
       posShip();
+    }, 80);
+  }
+
+  function openPortsOverview() {
+    isAllShipsMode = false;
+    isPortsMode = true;
+    clearMapMarkers();
+    hide('fleet-screen');
+    document.getElementById('slider-wrap').style.display = 'none';
+
+    document.getElementById('det-title').textContent = '\u2693\uFE0F Global Ports Overview';
+    document.getElementById('det-imo').textContent = 'All-Time Ranking';
+
+    show('detail-screen', 'flex');
+    initMap();
+
+    setTimeout(function() {
+      leafMap.invalidateSize();
+      renderPortsOverview();
     }, 80);
   }
 
@@ -554,6 +607,171 @@
     }
 
     renderAllShipsInfo(vessels, genAt);
+  }
+
+  function renderPortsOverview() {
+    clearMapMarkers();
+
+    var stats = computeGlobalPortStats();
+    var latLngs = [];
+    var maxVisits = stats.length ? stats[0].visits : 1;
+
+    stats.forEach(function(p) {
+      if (p.lat != null && p.lng != null) {
+        var radius = Math.max(6, Math.min(24, (p.visits / maxVisits) * 24));
+        var marker = L.circleMarker([p.lat, p.lng], {
+          radius: radius,
+          fillColor: "#eab308",
+          color: "#fde047",
+          weight: 2,
+          opacity: 1,
+          fillOpacity: 0.6
+        }).addTo(leafMap);
+
+        var shipsHtml = Object.keys(p.ships).map(function(s) {
+          return esc(s) + ' (' + p.ships[s] + 'x)';
+        }).join(', ');
+
+        var popHtml =
+          '<div style="font-family:sans-serif;font-size:12px;color:#111;">' +
+          '<b style="font-size:14px;">' + esc(p.name) + '</b><br>' +
+          'Total Visits: ' + p.visits + '<br>' +
+          'Ships: ' + shipsHtml +
+          '</div>';
+
+        marker.bindPopup(popHtml, { autoPan: false });
+        p.marker = marker;
+        allPortMarkers.push(marker);
+        latLngs.push([p.lat, p.lng]);
+      }
+    });
+
+    if (latLngs.length > 0) {
+      var bounds = L.latLngBounds(latLngs);
+      leafMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 8 });
+    }
+
+    var bar = document.getElementById('sig-bar');
+    bar.className = 'sig-bar port';
+    bar.textContent = '\u2693 ' + stats.length + ' Ports Recorded (All Time)';
+
+    renderPortsInfo(stats);
+  }
+
+  function renderPortsInfo(stats) {
+    var html = '<div class="info-sec"><div class="info-sec-ttl">Most Docked Ports Ranking</div>';
+
+    if (!stats.length) {
+      html += '<div class="info-row"><span class="info-lbl">No port data available</span></div></div>';
+      document.getElementById('info-scroll').innerHTML = html;
+      return;
+    }
+
+    stats.forEach(function(p, i) {
+      var avgMs = p.visits > 0 ? p.totalMs / p.visits : 0;
+      var shipsArr = Object.keys(p.ships).map(function(s) {
+          return esc(s) + ' <span class="info-ports-count">(' + p.ships[s] + 'x)</span>';
+      });
+      var shipsHtml = shipsArr.join(', ');
+
+      html +=
+        '<div class="all-vessel-card" style="background:#222;border:1px solid #444;border-radius:4px;padding:10px;margin-bottom:10px;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">' +
+            '<div style="display:flex;align-items:center;gap:6px;">' +
+              '<span style="color:#aaa;font-weight:bold;font-size:0.85rem">#' + (i+1) + '</span>' +
+              '<strong style="color:#fde047;font-size:0.95rem;">' + esc(p.name) + '</strong>' +
+            '</div>' +
+            '<span class="card-badge st-anchor" style="margin:0;font-size:0.68rem;padding:2px 6px;background:rgba(234,179,8,.15);color:#fde047;border:1px solid rgba(234,179,8,.5);">' + p.visits + ' Visits</span>' +
+          '</div>' +
+          '<div class="card-details" style="font-size:0.78rem;gap:3px 8px;margin-bottom:8px;">' +
+            '<span class="lbl">Avg Duration</span><span class="val">' + fmtDuration(avgMs) + '</span>' +
+            '<span class="lbl">Ships</span><span class="val">' + shipsHtml + '</span>' +
+          '</div>' +
+          (p.lat != null ?
+          '<div style="display:flex;gap:6px;">' +
+            '<button class="btn-port-focus" data-idx="' + i + '" style="flex:1;background:#333;border:1px solid #666;color:#ccc;padding:4px 8px;border-radius:3px;cursor:pointer;font-size:0.75rem;">\uD83C\uDFAF Center Map</button>' +
+          '</div>' : '') +
+        '</div>';
+    });
+
+    html += '</div>';
+    var container = document.getElementById('info-scroll');
+    container.innerHTML = html;
+
+    var focusBtns = container.querySelectorAll('.btn-port-focus');
+    focusBtns.forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var idx = btn.getAttribute('data-idx');
+        var p = stats[idx];
+        if (p && p.marker) {
+          leafMap.setView(p.marker.getLatLng(), 10);
+          p.marker.openPopup();
+        }
+      });
+    });
+  }
+
+  function computeGlobalPortStats() {
+    var portData = {}; // key: port name
+    var chron = snapshots.slice().reverse();
+
+    var shipSnaps = {};
+    chron.forEach(function(snap) {
+      if (!snap.content || !snap.content.vessels) return;
+      var t = snap.content.generated_at;
+      snap.content.vessels.forEach(function(v) {
+        if (!shipSnaps[v.name]) shipSnaps[v.name] = [];
+        shipSnaps[v.name].push({ vessel: v, generatedAt: t });
+      });
+    });
+
+    Object.keys(shipSnaps).forEach(function(shipName) {
+      var snaps = shipSnaps[shipName];
+      var curPort = null, curStart = null, curEnd = null, curLat = null, curLng = null;
+
+      snaps.forEach(function(entry) {
+        var port = entry.vessel.current_port || null;
+        var t = entry.generatedAt;
+        var lat = entry.vessel.latitude;
+        var lng = entry.vessel.longitude;
+
+        if (port) {
+          if (port === curPort) {
+            curEnd = t;
+            if (lat != null && lng != null) { curLat = lat; curLng = lng; }
+          } else {
+            if (curPort) {
+              recordVisit(portData, curPort, shipName, curStart, curEnd, curLat, curLng);
+            }
+            curPort = port; curStart = t; curEnd = t; curLat = lat; curLng = lng;
+          }
+        } else if (curPort) {
+          recordVisit(portData, curPort, shipName, curStart, curEnd, curLat, curLng);
+          curPort = null; curStart = null; curEnd = null; curLat = null; curLng = null;
+        }
+      });
+      if (curPort) {
+        recordVisit(portData, curPort, shipName, curStart, curEnd, curLat, curLng);
+      }
+    });
+
+    var results = Object.keys(portData).map(function(p) { return portData[p]; });
+    results.sort(function(a, b) { return b.visits - a.visits; });
+    return results;
+  }
+
+  function recordVisit(dataMap, port, shipName, start, end, lat, lng) {
+    if (!dataMap[port]) {
+      dataMap[port] = { name: port, visits: 0, totalMs: 0, ships: {}, lat: lat, lng: lng };
+    }
+    var pd = dataMap[port];
+    pd.visits++;
+    if (start && end) {
+      pd.totalMs += (new Date(end) - new Date(start));
+    }
+    pd.ships[shipName] = (pd.ships[shipName] || 0) + 1;
+    if (lat != null && lng != null) { pd.lat = lat; pd.lng = lng; }
   }
 
   function renderAllShipsInfo(vessels, genAt) {

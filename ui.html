@@ -1,6 +1,6 @@
 <!--
 *
-* version 10 : -> port overview screen
+* version 11 : -> load more previous data
 *
 -->
 <!DOCTYPE html>
@@ -72,6 +72,9 @@
     #map{flex:1;min-height:0;background:#111}
     .slider-wrap{background:#0d0d0d;border-top:1px solid #555;padding:14px 20px;flex-shrink:0}
     .slider-ends{display:flex;justify-content:space-between;font-size:.72rem;color:#aaa;margin-bottom:8px}
+    .btn-load-more{background:#333;color:#fff;border:1px solid #444;border-radius:3px;padding:2px 6px;cursor:pointer;font-size:.72rem}
+    .btn-load-more:hover{background:#444}
+    .btn-load-more:disabled{opacity:0.5;cursor:not-allowed}
     .slider-track-wrap{position:relative}
     input[type=range]#time-slider{width:100%;-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;background:#444;outline:none;cursor:pointer;position:relative;z-index:1}
     input[type=range]#time-slider::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;opacity:0;cursor:pointer}
@@ -129,7 +132,10 @@
       <div id="map"></div>
       <div class="slider-wrap" id="slider-wrap">
         <div class="slider-ends">
-          <span id="lbl-old"></span>
+          <div>
+            <button id="btn-load-more" class="btn-load-more" style="display: none; margin-right: 8px;">Load previous data</button>
+            <span id="lbl-old"></span>
+          </div>
           <span id="lbl-new"></span>
         </div>
         <div class="slider-track-wrap">
@@ -158,6 +164,9 @@
   var shipMarker     = null;
   var isAllShipsMode = false;
   var isPortsMode    = false;
+  var currentPage    = 1;
+  var totalPages     = 1;
+  var currentShipName= null;
   var allShipMarkers = {};   // map of shipName -> Leaflet Marker
   var allPortMarkers = [];   // array of Leaflet circle markers
 
@@ -293,7 +302,62 @@
 
   // ── fetch ─────────────────────────────────────────────────────────────
 
+  function updateLoadMoreButton() {
+    var btn = document.getElementById('btn-load-more');
+    if (!btn) return;
+    if (currentPage < totalPages) {
+      btn.style.display = 'inline-block';
+      btn.textContent = 'Load previous data';
+      btn.disabled = false;
+    } else {
+      btn.style.display = 'none';
+    }
+  }
+
+  function loadMoreData() {
+    if (currentPage >= totalPages) return;
+    var btn = document.getElementById('btn-load-more');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Loading...';
+    }
+    
+    var nextPage = currentPage + 1;
+    fetch('/ubtship/read-json?limit=500&page=' + nextPage)
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function(data) {
+        var newItems = data.items || [];
+        var slider = document.getElementById('time-slider');
+        
+        // determine current active index before adding new data
+        var N_old = isAllShipsMode ? snapshots.length : activeSnaps.length;
+        var currentSnapIdx = (N_old - 1) - parseInt(slider.value, 10);
+
+        snapshots = snapshots.concat(newItems);
+        currentPage = data.page || nextPage;
+        totalPages = data.totalPages || totalPages;
+        updateLoadMoreButton();
+        
+        if (isAllShipsMode) {
+          openAllShips(currentSnapIdx);
+        } else if (currentShipName) {
+          openDetail(currentShipName, currentSnapIdx);
+        }
+      })
+      .catch(function(e) {
+        alert('Failed to load more data: ' + e.message);
+        updateLoadMoreButton();
+      });
+  }
+
   function init() {
+    var btn = document.getElementById('btn-load-more');
+    if (btn) {
+      btn.addEventListener('click', loadMoreData);
+    }
     fetch('/ubtship/read-json?limit=500&page=1')
       .then(function(r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -301,6 +365,9 @@
       })
       .then(function(data) {
         snapshots = data.items || [];
+        currentPage = data.page || 1;
+        totalPages = data.totalPages || 1;
+        updateLoadMoreButton();
         if (!snapshots.length) throw new Error('No snapshots available');
         hide('loading');
         buildFleet();
@@ -413,9 +480,10 @@
 
   // ── detail screen ─────────────────────────────────────────────────────
 
-  function openAllShips() {
+  function openAllShips(restoreIdx) {
     isAllShipsMode = true;
     isPortsMode = false;
+    currentShipName = null;
     clearMapMarkers();
     hide('fleet-screen');
     document.getElementById('slider-wrap').style.display = 'block';
@@ -430,7 +498,9 @@
     var slider = document.getElementById('time-slider');
     slider.min   = 0;
     slider.max   = N - 1;
-    slider.value = N - 1;
+    
+    var startIdx = typeof restoreIdx === 'number' ? restoreIdx : 0;
+    slider.value = (N - 1) - startIdx;
 
     var oldestAt = snapshots[N - 1].content && snapshots[N - 1].content.generated_at;
     var newestAt = snapshots[0].content && snapshots[0].content.generated_at;
@@ -448,14 +518,15 @@
 
     setTimeout(function() {
       leafMap.invalidateSize();
-      renderSnap(0, true);
+      renderSnap(startIdx, true);
       posShip();
     }, 80);
   }
 
-  function openDetail(shipName) {
+  function openDetail(shipName, restoreIdx) {
     isAllShipsMode = false;
     isPortsMode = false;
+    currentShipName = shipName;
     clearMapMarkers();
     hide('fleet-screen');
     document.getElementById('slider-wrap').style.display = 'block';
@@ -487,7 +558,9 @@
     var slider = document.getElementById('time-slider');
     slider.min   = 0;
     slider.max   = N - 1;
-    slider.value = N - 1; // start at rightmost = newest
+    
+    var startIdx = typeof restoreIdx === 'number' ? restoreIdx : 0;
+    slider.value = (N - 1) - startIdx;
 
     document.getElementById('lbl-old').textContent = fmtShort(activeSnaps[N - 1].generatedAt);
     document.getElementById('lbl-new').textContent = fmtShort(activeSnaps[0].generatedAt);
@@ -502,7 +575,7 @@
 
     setTimeout(function() {
       leafMap.invalidateSize();
-      renderSnap(0, true); // show newest
+      renderSnap(startIdx, true);
       posShip();
     }, 80);
   }
